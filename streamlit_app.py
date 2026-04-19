@@ -1,181 +1,239 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import io
+import plotly.express as px
+import plotly.graph_objects as go
 import warnings
 warnings.filterwarnings("ignore")
 
-# ── Page config ──────────────────────────────────────────────
+# ── Page config ───────────────────────────────────────────────
 st.set_page_config(
     page_title="Bid Margin Optimizer",
     page_icon="📊",
     layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# ── Custom CSS — Design 4 Olive/Sage/Teal theme ──────────────
+# ── CSS — Midnight Finance Theme ──────────────────────────────
 st.markdown("""
 <style>
-  /* Page background */
-  .stApp { background-color: #3d4a38 !important; }
-  section[data-testid="stSidebar"] { display: none; }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
 
-  /* Hide default streamlit header/footer */
-  #MainMenu, footer, header { visibility: hidden; }
+/* ── Base ── */
+html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
+.stApp { background: #070b14 !important; }
 
-  /* Top nav bar */
-  .top-nav {
-    background: #2e3828;
-    border-bottom: 1px solid #4a5a44;
-    padding: 14px 28px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    border-radius: 12px;
-    margin-bottom: 16px;
-  }
-  .nav-left { display: flex; align-items: center; gap: 14px; }
-  .nav-icon {
-    width: 42px; height: 42px;
-    background: #546E7A;
-    border-radius: 12px;
-    display: flex; align-items: center;
-    justify-content: center;
-    font-size: 20px;
-  }
-  .nav-title { color: #ffffff; font-size: 18px; font-weight: 700; }
-  .nav-sub   { color: #8a9e82; font-size: 11px; font-family: monospace; }
+/* ── Hide streamlit chrome ── */
+#MainMenu, footer, header { visibility: hidden; }
+.block-container { padding: 0 !important; max-width: 100% !important; }
 
-  /* Stat cards */
-  .cards-row {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 12px;
-    margin-bottom: 16px;
-  }
-  .stat-card {
-    background: #2e3828;
-    border: 1px solid #4a5a44;
-    border-radius: 16px;
-    padding: 18px 20px;
-  }
-  .stat-icon {
-    width: 28px; height: 28px;
-    border-radius: 8px;
-    display: inline-flex; align-items: center;
-    justify-content: center; font-size: 13px;
-    margin-bottom: 8px;
-  }
-  .stat-label {
-    font-size: 9px; font-weight: 700;
-    color: #8a9e82; letter-spacing: 0.08em;
-    text-transform: uppercase; margin-bottom: 6px;
-  }
-  .stat-value {
-    font-size: 26px; font-weight: 800;
-    font-family: monospace; margin-bottom: 3px;
-  }
-  .stat-sub { font-size: 10px; color: #4a5a44; }
+/* ── Sidebar ── */
+section[data-testid="stSidebar"] {
+  background: #0d1117 !important;
+  border-right: 1px solid #1a2332 !important;
+  width: 260px !important;
+}
+section[data-testid="stSidebar"] > div { padding: 0 !important; }
 
-  /* Table card */
-  .table-card {
-    background: #2e3828;
-    border: 1px solid #4a5a44;
-    border-radius: 16px;
-    overflow: hidden;
-    margin-bottom: 16px;
-  }
-  .table-header {
-    padding: 16px 20px;
-    border-bottom: 1px solid #4a5a44;
-    display: flex; align-items: center;
-    justify-content: space-between;
-    background: #252e22;
-  }
-  .table-title { color: #ffffff; font-size: 14px; font-weight: 700; }
-  .table-sub   { color: #8a9e82; font-size: 12px; margin-left: 10px; }
-  .rec-badge {
-    background: #3d4a38; color: #8a9e82;
-    padding: 4px 14px; border-radius: 8px;
-    font-size: 11px; font-weight: 600;
-  }
+/* ── Sidebar content ── */
+.sidebar-logo {
+  padding: 24px 20px 20px;
+  border-bottom: 1px solid #1a2332;
+  margin-bottom: 8px;
+}
+.sidebar-logo-icon {
+  width: 44px; height: 44px;
+  background: linear-gradient(135deg, #3b82f6, #06b6d4);
+  border-radius: 12px;
+  display: flex; align-items: center;
+  justify-content: center; font-size: 20px;
+  margin-bottom: 10px;
+}
+.sidebar-title { color: #f1f5f9; font-size: 15px; font-weight: 700; margin-bottom: 2px; }
+.sidebar-sub   { color: #475569; font-size: 11px; }
 
-  /* Data table */
-  table.loan-table {
-    width: 100%; border-collapse: collapse;
-    font-family: 'Segoe UI', system-ui, sans-serif;
-  }
-  table.loan-table th {
-    padding: 10px 16px; text-align: left;
-    font-size: 10px; font-weight: 700;
-    color: #ffffff; letter-spacing: 0.07em;
-    text-transform: uppercase;
-    border-bottom: 1px solid #4a5a44;
-    background: #252e22;
-  }
-  table.loan-table td {
-    padding: 11px 16px;
-    border-bottom: 1px solid #4a5a44;
-    font-size: 12px; color: #ffffff;
-  }
-  table.loan-table tr:nth-child(odd)  td { background: #2e3828; }
-  table.loan-table tr:nth-child(even) td { background: #252e22; }
-  table.loan-table tr:hover td { background: #3a4a34 !important; }
+.sidebar-section { padding: 16px 20px; border-bottom: 1px solid #1a2332; }
+.sidebar-section-title {
+  color: #475569; font-size: 9px; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 12px;
+}
+.sidebar-stat {
+  display: flex; align-items: center;
+  justify-content: space-between; margin-bottom: 10px;
+}
+.sidebar-stat-label { color: #64748b; font-size: 12px; }
+.sidebar-stat-value { color: #f1f5f9; font-size: 13px; font-weight: 600; font-family: 'JetBrains Mono', monospace; }
 
-  .fico-pill {
-    padding: 4px 12px; border-radius: 8px;
-    font-size: 12px; font-weight: 700;
-    display: inline-block;
-  }
-  .status-pill {
-    padding: 4px 12px; border-radius: 8px;
-    font-size: 11px; font-weight: 700;
-    display: inline-block;
-  }
+/* ── Main area ── */
+.main-content { padding: 24px 28px; }
 
-  /* Upload area */
-  .upload-box {
-    background: #2e3828;
-    border: 2px dashed #4a5a44;
-    border-radius: 16px;
-    padding: 40px;
-    text-align: center;
-    margin: 20px 0;
-  }
-  .upload-title { color: #ffffff; font-size: 20px; font-weight: 700; margin-bottom: 8px; }
-  .upload-sub   { color: #8a9e82; font-size: 13px; }
+/* ── Page title ── */
+.page-title {
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #1a2332;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.page-title-text { color: #f1f5f9; font-size: 24px; font-weight: 800; letter-spacing: -0.5px; }
+.page-title-sub  { color: #475569; font-size: 13px; margin-top: 4px; }
+.live-badge {
+  background: #052e16; border: 1px solid #166534;
+  color: #4ade80; padding: 6px 14px; border-radius: 99px;
+  font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px;
+}
 
-  /* Footer */
-  .footer {
-    background: #2e3828;
-    border-top: 1px solid #4a5a44;
-    padding: 14px 24px;
-    display: flex; align-items: center;
-    justify-content: space-between;
-    border-radius: 12px; margin-top: 16px;
-  }
+/* ── Metric cards ── */
+.metrics-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 14px; margin-bottom: 24px;
+}
+.metric-card {
+  background: #0d1117;
+  border: 1px solid #1a2332;
+  border-radius: 16px;
+  padding: 20px 22px;
+  position: relative; overflow: hidden;
+}
+.metric-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 3px; border-radius: 16px 16px 0 0;
+}
+.metric-card.blue::before   { background: linear-gradient(90deg, #3b82f6, #06b6d4); }
+.metric-card.green::before  { background: linear-gradient(90deg, #22c55e, #84cc16); }
+.metric-card.red::before    { background: linear-gradient(90deg, #ef4444, #f97316); }
+.metric-card.amber::before  { background: linear-gradient(90deg, #f59e0b, #eab308); }
 
-  /* Streamlit file uploader override */
-  [data-testid="stFileUploader"] {
-    background: #2e3828 !important;
-    border: 1px solid #4a5a44 !important;
-    border-radius: 12px !important;
-    padding: 12px !important;
-  }
-  [data-testid="stFileUploader"] label { color: #ffffff !important; }
-  [data-testid="stFileUploaderDropzone"] {
-    background: #252e22 !important;
-    border: 2px dashed #4a5a44 !important;
-    border-radius: 10px !important;
-  }
-  [data-testid="stFileUploaderDropzone"] p { color: #8a9e82 !important; }
-  [data-testid="stDownloadButton"] button {
-    background: #8A9A5B !important;
-    color: white !important;
-    border: none !important;
-    border-radius: 10px !important;
-    font-weight: 700 !important;
-    padding: 10px 22px !important;
-  }
+.metric-label { font-size: 10px; font-weight: 600; color: #475569; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 10px; }
+.metric-value { font-size: 28px; font-weight: 800; font-family: 'JetBrains Mono', monospace; margin-bottom: 6px; letter-spacing: -0.5px; }
+.metric-sub   { font-size: 11px; color: #334155; }
+
+/* ── Tabs ── */
+.stTabs [data-baseweb="tab-list"] {
+  background: #0d1117 !important;
+  border-bottom: 1px solid #1a2332 !important;
+  gap: 0 !important; padding: 0 !important;
+  border-radius: 0 !important;
+}
+.stTabs [data-baseweb="tab"] {
+  background: transparent !important;
+  color: #475569 !important;
+  font-size: 13px !important; font-weight: 500 !important;
+  padding: 14px 24px !important;
+  border-bottom: 2px solid transparent !important;
+  border-radius: 0 !important;
+}
+.stTabs [aria-selected="true"] {
+  background: transparent !important;
+  color: #3b82f6 !important;
+  border-bottom: 2px solid #3b82f6 !important;
+}
+.stTabs [data-baseweb="tab-panel"] {
+  background: transparent !important;
+  padding: 20px 0 0 !important;
+}
+
+/* ── Search & filters ── */
+.filter-bar {
+  background: #0d1117; border: 1px solid #1a2332;
+  border-radius: 12px; padding: 16px 20px;
+  margin-bottom: 16px;
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+}
+.stTextInput input {
+  background: #070b14 !important;
+  border: 1px solid #1a2332 !important;
+  color: #f1f5f9 !important;
+  border-radius: 8px !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 13px !important;
+}
+.stTextInput input:focus { border-color: #3b82f6 !important; box-shadow: 0 0 0 3px #3b82f620 !important; }
+.stSelectbox > div > div {
+  background: #070b14 !important;
+  border: 1px solid #1a2332 !important;
+  color: #f1f5f9 !important;
+  border-radius: 8px !important;
+}
+label { color: #475569 !important; font-size: 12px !important; }
+
+/* ── Table ── */
+.table-wrap {
+  background: #0d1117; border: 1px solid #1a2332;
+  border-radius: 16px; overflow: hidden;
+}
+.table-head-bar {
+  padding: 16px 22px; border-bottom: 1px solid #1a2332;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.table-head-title { color: #f1f5f9; font-size: 14px; font-weight: 700; }
+.table-head-sub   { color: #475569; font-size: 12px; margin-left: 10px; }
+.count-badge {
+  background: #1a2332; color: #64748b;
+  padding: 4px 12px; border-radius: 99px;
+  font-size: 11px; font-weight: 600;
+}
+
+table.dtable { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.dtable th {
+  padding: 11px 16px; text-align: left;
+  font-size: 10px; font-weight: 700; color: #f1f5f9;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  border-bottom: 1px solid #1a2332; background: #070b14;
+  white-space: nowrap;
+}
+table.dtable td {
+  padding: 12px 16px; color: #f1f5f9;
+  border-bottom: 1px solid #0d1117;
+  font-family: 'Inter', sans-serif;
+}
+table.dtable tr:nth-child(odd)  td { background: #0d1117; }
+table.dtable tr:nth-child(even) td { background: #0a0f1a; }
+table.dtable tr:hover td { background: #111827 !important; }
+
+.fico-pill {
+  padding: 3px 11px; border-radius: 6px;
+  font-size: 12px; font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  display: inline-block;
+}
+.status-badge {
+  padding: 3px 12px; border-radius: 99px;
+  font-size: 11px; font-weight: 600; display: inline-block;
+}
+
+/* ── Download button ── */
+.stDownloadButton button {
+  background: linear-gradient(135deg, #3b82f6, #06b6d4) !important;
+  color: white !important; border: none !important;
+  border-radius: 10px !important; font-weight: 700 !important;
+  font-size: 13px !important; padding: 12px 28px !important;
+  width: 100% !important; transition: all .2s !important;
+}
+.stDownloadButton button:hover { opacity: 0.85 !important; }
+
+/* ── Upload area ── */
+[data-testid="stFileUploader"] {
+  background: #0d1117 !important;
+  border: 2px dashed #1a2332 !important;
+  border-radius: 16px !important; padding: 20px !important;
+}
+[data-testid="stFileUploaderDropzone"] {
+  background: transparent !important;
+  border: none !important;
+}
+[data-testid="stFileUploaderDropzone"] p { color: #475569 !important; }
+
+/* ── Slider ── */
+.stSlider > div > div > div { background: #3b82f6 !important; }
+
+/* ── Plotly chart bg ── */
+.js-plotly-plot { border-radius: 12px; overflow: hidden; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #0d1117; }
+::-webkit-scrollbar-thumb { background: #1a2332; border-radius: 99px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -279,265 +337,449 @@ def recommend_margins(df,recommendations):
 
 # ── Color helpers ─────────────────────────────────────────────
 def fico_color(f):
-    if f>=750: return ("#ffffff","#546E7A")
-    if f>=700: return ("#ffffff","#4a7a6a")
-    if f>=650: return ("#ffffff","#6a7a3a")
-    return ("#ffffff","#5a3a3a")
+    if f>=750: return ("#fff","#1d4ed8")
+    if f>=700: return ("#fff","#0e7490")
+    if f>=650: return ("#fff","#b45309")
+    return ("#fff","#991b1b")
 
 def margin_color(m):
-    if m>-0.40: return "#84cc16"
+    if m>-0.40: return "#22c55e"
     if m>-0.50: return "#f59e0b"
-    return "#f87171"
+    return "#ef4444"
 
 def bar_html(m):
     mn,mx=-0.65,-0.30
     pct=max(0,min(100,((m-mn)/(mx-mn))*100))
     c=margin_color(m)
     return f'''<div style="display:flex;align-items:center;gap:10px">
-      <div style="width:80px;height:6px;background:#4a5a44;border-radius:99px;overflow:hidden">
+      <div style="width:80px;height:5px;background:#1a2332;border-radius:99px;overflow:hidden">
         <div style="width:{pct:.0f}%;height:100%;background:{c};border-radius:99px"></div>
       </div>
-      <span style="color:{c};font-weight:700;font-size:13px;font-family:monospace">{m:.4f}</span>
+      <span style="color:{c};font-weight:700;font-size:12px;font-family:'JetBrains Mono',monospace">{m:.4f}</span>
     </div>'''
 
-def fico_bars_html(df):
-    fico_dist=df["FicoBucket"].value_counts()
-    max_cnt=max(fico_dist.values) if len(fico_dist)>0 else 1
-    buckets=["451-500","501-550","551-600","601-650","651-700","701-750","751-800","801-850"]
-    html=""
-    colors={"751-800":"#c8f5b0","801-850":"#86efac","701-750":"#86efac",
-            "651-700":"#fde68a","601-650":"#fde68a","551-600":"#fca5a5",
-            "501-550":"#fca5a5","451-500":"#f87171"}
-    for fb in buckets:
-        cnt=fico_dist.get(fb,0)
-        h=max(4,int((cnt/max_cnt)*52)) if cnt else 4
-        c=colors.get(fb,"#4a5a44")
-        op=1.0 if cnt else 0.2
-        html+=f'''<div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex:1">
-          <div style="width:100%;height:{h}px;background:{c};border-radius:4px 4px 0 0;opacity:{op}"></div>
-          <span style="font-size:8px;color:#8a9e82">{fb.split("-")[0]}</span>
-        </div>'''
-    return html
-
-# ── Build loan table HTML ─────────────────────────────────────
-def build_loan_table(df, loan_col):
-    rows=""
-    for i,(_,row) in enumerate(df.iterrows()):
-        loan_num=str(row[loan_col])[-12:] if loan_col else "—"
-        fico=int(row.get("_fico",0))
-        rate=float(row.get("_rate",0))
-        amt=float(row.get("_amount",0))
-        fb=str(row.get("FicoBucket","—"))
-        rb=str(row.get("RateBucket","—"))
-        ab=str(row.get("AmountBucket","—"))
-        rec=float(row.get("RecommendedMargin",0))
-        status=str(row.get("BucketMatched","—"))
-        ftc,fbc=fico_color(fico)
-        mc=margin_color(rec)
-        s_color="#84cc16" if status=="Matched" else "#6b7280"
-        s_bg="#1a2e10" if status=="Matched" else "#3a4a34"
-        rows+=f"""<tr>
-          <td style="font-family:monospace;font-size:11px">{loan_num}</td>
-          <td><span class="fico-pill" style="background:{fbc};color:{ftc}">{fico}</span></td>
-          <td style="font-family:monospace;font-weight:600">{rate:.3f}%</td>
-          <td style="font-family:monospace">${amt:,.0f}</td>
-          <td style="color:#c8d8b0;font-size:11px">{fb}</td>
-          <td>{rb}</td>
-          <td>{ab}</td>
-          <td>{bar_html(rec)}</td>
-          <td><span class="status-pill" style="background:{s_bg};color:{s_color}">
-            {"✓ Matched" if status=="Matched" else "— No History"}
-          </span></td>
-        </tr>"""
-    return f"""
-    <table class="loan-table">
-      <thead><tr>
-        <th>Loan #</th><th>FICO</th><th>Rate</th><th>Amount</th>
-        <th>FICO Bucket</th><th>Rate Bkt</th><th>Amt Bkt</th>
-        <th>Rec Margin</th><th>Status</th>
-      </tr></thead>
-      <tbody>{rows}</tbody>
-    </table>"""
-
-# ── Build bucket stats table HTML ────────────────────────────
-def build_bucket_table(stats_df):
-    rows=""
-    for i,(_,r) in enumerate(stats_df.iterrows()):
-        mc=margin_color(r['MedianMargin'])
-        mc_bg="#1a2e10" if r['MedianMargin']>-0.40 else "#2a1f00" if r['MedianMargin']>-0.50 else "#2a1010"
-        rows+=f"""<tr>
-          <td style="font-family:monospace;font-size:11px">{str(r['BucketKey'])}</td>
-          <td style="font-weight:700">{int(r['LoanCount'])}</td>
-          <td><span style="background:{mc_bg};color:{mc};padding:3px 12px;border-radius:6px;
-                           font-weight:700;font-family:monospace;font-size:12px">{r['MedianMargin']:.4f}</span></td>
-          <td style="font-family:monospace">{r['AvgMargin']:.4f}</td>
-          <td style="font-family:monospace">{r['P25Margin']:.4f}</td>
-          <td style="font-family:monospace">{r['P75Margin']:.4f}</td>
-        </tr>"""
-    return f"""
-    <table class="loan-table">
-      <thead><tr>
-        <th style="width:35%">Bucket Key</th><th style="width:10%">Count</th>
-        <th style="width:15%">Median</th><th style="width:15%">Avg</th>
-        <th style="width:12%">P25</th><th style="width:13%">P75</th>
-      </tr></thead>
-      <tbody>{rows}</tbody>
-    </table>"""
-
-# ── MAIN APP ──────────────────────────────────────────────────
-
-# Top Nav
-st.markdown("""
-<div class="top-nav">
-  <div class="nav-left">
-    <div class="nav-icon">📊</div>
-    <div>
-      <div class="nav-title">Bid Margin Optimizer</div>
-      <div class="nav-sub">Mortgage Analytics Dashboard</div>
-    </div>
-  </div>
-  <div style="color:#8a9e82;font-size:12px">Upload your file below ↓</div>
-</div>
-""", unsafe_allow_html=True)
-
-# File upload
-uploaded_file = st.file_uploader(
-    "Upload your loan file (Excel or CSV)",
-    type=["xlsx","xls","csv"],
-    label_visibility="collapsed"
+# ── Plotly chart theme ────────────────────────────────────────
+CHART_THEME = dict(
+    paper_bgcolor="#0d1117",
+    plot_bgcolor="#0d1117",
+    font=dict(color="#64748b", family="Inter"),
+    margin=dict(l=20,r=20,t=40,b=20),
 )
 
-if uploaded_file is None:
+# ── Sidebar ───────────────────────────────────────────────────
+with st.sidebar:
     st.markdown("""
-    <div class="upload-box">
-      <div style="font-size:48px;margin-bottom:16px">📂</div>
-      <div class="upload-title">Drop your Excel or CSV file above</div>
-      <div class="upload-sub">Supported formats: .xlsx, .xls, .csv</div>
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-icon">📊</div>
+      <div class="sidebar-title">Bid Margin Optimizer</div>
+      <div class="sidebar-sub">Mortgage Analytics Platform</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    uploaded_file = st.file_uploader(
+        "Upload loan file",
+        type=["xlsx","xls","csv"],
+        help="Upload your Excel or CSV loan file"
+    )
+
+    if uploaded_file:
+        st.markdown(f"""
+        <div class="sidebar-section">
+          <div class="sidebar-section-title">File Info</div>
+          <div class="sidebar-stat">
+            <span class="sidebar-stat-label">File</span>
+            <span class="sidebar-stat-value" style="font-size:10px;color:#3b82f6">{uploaded_file.name[:18]}...</span>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+# ── No file uploaded ──────────────────────────────────────────
+if not uploaded_file:
+    st.markdown("""
+    <div style="display:flex;align-items:center;justify-content:center;
+                min-height:80vh;flex-direction:column;gap:20px;padding:40px">
+      <div style="width:80px;height:80px;background:linear-gradient(135deg,#3b82f6,#06b6d4);
+                  border-radius:20px;display:flex;align-items:center;
+                  justify-content:center;font-size:36px">📊</div>
+      <div style="text-align:center">
+        <div style="color:#f1f5f9;font-size:28px;font-weight:800;margin-bottom:8px">
+          Bid Margin Optimizer
+        </div>
+        <div style="color:#475569;font-size:15px;margin-bottom:6px">
+          Mortgage Analytics Platform
+        </div>
+        <div style="color:#334155;font-size:13px">
+          Upload your Excel or CSV file from the sidebar to get started ←
+        </div>
+      </div>
+      <div style="display:flex;gap:24px;margin-top:10px">
+        <div style="text-align:center">
+          <div style="color:#3b82f6;font-size:22px;font-weight:800">FICO</div>
+          <div style="color:#334155;font-size:11px">Bucket Analysis</div>
+        </div>
+        <div style="text-align:center">
+          <div style="color:#06b6d4;font-size:22px;font-weight:800">Rate</div>
+          <div style="color:#334155;font-size:11px">Calibration</div>
+        </div>
+        <div style="text-align:center">
+          <div style="color:#22c55e;font-size:22px;font-weight:800">Margin</div>
+          <div style="color:#334155;font-size:11px">Recommendation</div>
+        </div>
+      </div>
     </div>
     """, unsafe_allow_html=True)
     st.stop()
 
-# Load file
-with st.spinner("Loading and processing your file..."):
-    try:
-        if uploaded_file.name.endswith(".csv"):
-            df_raw = pd.read_csv(uploaded_file, dtype=str)
-        else:
-            df_raw = pd.read_excel(uploaded_file, sheet_name=0, dtype=str)
-    except Exception as e:
-        st.error(f"❌ Error reading file: {e}")
-        st.stop()
+# ── Load & process ────────────────────────────────────────────
+@st.cache_data
+def load_and_process(file_bytes, file_name):
+    import io
+    if file_name.endswith(".csv"):
+        df_raw = pd.read_csv(io.BytesIO(file_bytes), dtype=str)
+    else:
+        df_raw = pd.read_excel(io.BytesIO(file_bytes), sheet_name=0, dtype=str)
+    df   = assign_buckets(df_raw)
+    recs, stats = calibrate_margins(df)
+    df   = recommend_margins(df, recs if recs else {})
+    return df, stats, recs if recs else {}
 
-    df          = assign_buckets(df_raw)
-    result      = calibrate_margins(df)
-    recs,stats  = result if isinstance(result,tuple) else (result,None)
-    df          = recommend_margins(df, recs)
-    loan_col    = next((c for c in ["LoanNumber","Loan Number","loan_number"] if c in df.columns),None)
+file_bytes = uploaded_file.read()
+with st.spinner("⚙️ Processing your loan file..."):
+    df, stats_df, recs = load_and_process(file_bytes, uploaded_file.name)
 
-# Summary values
+loan_col    = next((c for c in ["LoanNumber","Loan Number","loan_number"] if c in df.columns), None)
 total_loans = len(df)
 total_vol   = df["_amount"].sum()
 wtd_margin  = (df["RecommendedMargin"]*df["_amount"]).sum()/total_vol if total_vol>0 else 0
 matched     = (df["BucketMatched"]=="Matched").sum()
 coverage    = int(matched/total_loans*100) if total_loans>0 else 0
 wmc         = margin_color(wtd_margin)
-wmc_txt     = "#065f46" if wtd_margin>-0.40 else "#92400e" if wtd_margin>-0.50 else "#991b1b"
 
-# Stat cards + FICO chart
-bars = fico_bars_html(df)
-st.markdown(f"""
-<div class="cards-row">
-  <div class="stat-card">
-    <div class="stat-icon" style="background:#546E7A">📋</div>
-    <div class="stat-label">Total Loans</div>
-    <div class="stat-value" style="color:#ffffff">{total_loans}</div>
-    <div class="stat-sub">records loaded</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-icon" style="background:#2a4a3a">💰</div>
-    <div class="stat-label">Total Volume</div>
-    <div class="stat-value" style="color:#84cc16">${total_vol/1e6:.2f}M</div>
-    <div class="stat-sub">portfolio size</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-icon" style="background:{'#2a4a3a' if wtd_margin>-0.40 else '#2a1f00' if wtd_margin>-0.50 else '#2a0f0f'}">📈</div>
-    <div class="stat-label">Wtd Avg Margin</div>
-    <div class="stat-value" style="color:{wmc}">{wtd_margin:.4f}</div>
-    <div class="stat-sub">weighted recommended</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-icon" style="background:{'#2a4a3a' if coverage==100 else '#2a1f00'}">🎯</div>
-    <div class="stat-label">Bucket Coverage</div>
-    <div class="stat-value" style="color:{'#84cc16' if coverage==100 else '#f59e0b'}">{coverage}%</div>
-    <div class="stat-sub">{matched}/{total_loans} matched</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label" style="margin-bottom:12px">FICO Distribution</div>
-    <div style="display:flex;align-items:flex-end;gap:3px;height:52px">{bars}</div>
-  </div>
-</div>
-""", unsafe_allow_html=True)
-
-# Loan Detail Table
-loan_table = build_loan_table(df, loan_col)
-st.markdown(f"""
-<div class="table-card">
-  <div class="table-header">
-    <div>
-      <span class="table-title">Loan Detail</span>
-      <span class="table-sub">— Recommended bid margins</span>
-    </div>
-    <span class="rec-badge">{total_loans} records</span>
-  </div>
-  <div style="overflow-x:auto">{loan_table}</div>
-</div>
-""", unsafe_allow_html=True)
-
-# Bucket Statistics Table
-if stats is not None and len(stats)>0:
-    bucket_table = build_bucket_table(stats)
+# ── Update sidebar with stats ─────────────────────────────────
+with st.sidebar:
     st.markdown(f"""
-    <div class="table-card">
-      <div class="table-header">
-        <div>
-          <span class="table-title">Bucket Statistics</span>
-          <span class="table-sub">— Historical All In Margin</span>
-        </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Portfolio Summary</div>
+      <div class="sidebar-stat">
+        <span class="sidebar-stat-label">Total Loans</span>
+        <span class="sidebar-stat-value">{total_loans}</span>
       </div>
-      <div style="overflow-x:auto">{bucket_table}</div>
+      <div class="sidebar-stat">
+        <span class="sidebar-stat-label">Total Volume</span>
+        <span class="sidebar-stat-value" style="color:#3b82f6">${total_vol/1e6:.2f}M</span>
+      </div>
+      <div class="sidebar-stat">
+        <span class="sidebar-stat-label">Wtd Margin</span>
+        <span class="sidebar-stat-value" style="color:{wmc}">{wtd_margin:.4f}</span>
+      </div>
+      <div class="sidebar-stat">
+        <span class="sidebar-stat-label">Coverage</span>
+        <span class="sidebar-stat-value" style="color:{'#22c55e' if coverage==100 else '#f59e0b'}">{coverage}%</span>
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">FICO Breakdown</div>
+    """, unsafe_allow_html=True)
+
+    fico_counts = df["FicoBucket"].value_counts().sort_index()
+    for bucket, count in fico_counts.items():
+        pct = int(count/total_loans*100)
+        st.markdown(f"""
+        <div style="margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+            <span style="color:#64748b;font-size:11px">{bucket}</span>
+            <span style="color:#94a3b8;font-size:11px;font-family:'JetBrains Mono',monospace">{count}</span>
+          </div>
+          <div style="height:4px;background:#1a2332;border-radius:99px;overflow:hidden">
+            <div style="width:{pct}%;height:100%;background:linear-gradient(90deg,#3b82f6,#06b6d4);border-radius:99px"></div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # Download in sidebar
+    st.markdown("<div style='padding:16px 20px'>", unsafe_allow_html=True)
+    out_cols = [c for c in df.columns if not c.startswith("_")]
+    csv_data = df[out_cols].to_csv(index=False).encode("utf-8")
+    st.download_button("↓ Download Results CSV", csv_data,
+                       "bid_margin_recommendations.csv", "text/csv",
+                       use_container_width=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# ── Main content ──────────────────────────────────────────────
+st.markdown('<div class="main-content">', unsafe_allow_html=True)
+
+# Page title
+st.markdown(f"""
+<div class="page-title">
+  <div>
+    <div class="page-title-text">Bid Margin Dashboard</div>
+    <div class="page-title-sub">{uploaded_file.name} · {total_loans} loans processed</div>
+  </div>
+  <div class="live-badge">
+    <div style="width:7px;height:7px;border-radius:50%;background:#4ade80"></div>
+    Live Analysis
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+# Metric cards
+mc1,mc2,mc3,mc4 = "#3b82f6","#22c55e",wmc,"#22c55e" if coverage==100 else "#f59e0b"
+card_class = lambda m: "green" if m=="#22c55e" else "blue" if m=="#3b82f6" else "red" if m=="#ef4444" else "amber"
+st.markdown(f"""
+<div class="metrics-grid">
+  <div class="metric-card blue">
+    <div class="metric-label">Total Loans</div>
+    <div class="metric-value" style="color:#60a5fa">{total_loans}</div>
+    <div class="metric-sub">records in portfolio</div>
+  </div>
+  <div class="metric-card blue">
+    <div class="metric-label">Total Volume</div>
+    <div class="metric-value" style="color:#22d3ee">${total_vol/1e6:.2f}M</div>
+    <div class="metric-sub">total loan amount</div>
+  </div>
+  <div class="metric-card {'green' if wtd_margin>-0.40 else 'amber' if wtd_margin>-0.50 else 'red'}">
+    <div class="metric-label">Wtd Avg Margin</div>
+    <div class="metric-value" style="color:{wmc}">{wtd_margin:.4f}</div>
+    <div class="metric-sub">weighted recommended</div>
+  </div>
+  <div class="metric-card {'green' if coverage==100 else 'amber'}">
+    <div class="metric-label">Bucket Coverage</div>
+    <div class="metric-value" style="color:{'#4ade80' if coverage==100 else '#fbbf24'}">{coverage}%</div>
+    <div class="metric-sub">{matched}/{total_loans} loans matched</div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+# ── Tabs ──────────────────────────────────────────────────────
+tab1, tab2, tab3 = st.tabs(["📋  Loan Detail", "📊  Analytics", "🗂️  Bucket Statistics"])
+
+# ── TAB 1: Loan Detail ────────────────────────────────────────
+with tab1:
+    # Search & filter bar
+    col1, col2, col3, col4 = st.columns([3,2,2,2])
+    with col1:
+        search = st.text_input("🔍 Search loan number...", placeholder="Enter loan #")
+    with col2:
+        fico_filter = st.selectbox("FICO Bucket", ["All"] + sorted(df["FicoBucket"].unique().tolist()))
+    with col3:
+        status_filter = st.selectbox("Status", ["All", "Matched", "No History"])
+    with col4:
+        margin_filter = st.selectbox("Margin Range", ["All", "Above -0.40", "-0.40 to -0.50", "Below -0.50"])
+
+    # Apply filters
+    filtered = df.copy()
+    if search:
+        if loan_col:
+            filtered = filtered[filtered[loan_col].astype(str).str.contains(search, na=False)]
+    if fico_filter != "All":
+        filtered = filtered[filtered["FicoBucket"]==fico_filter]
+    if status_filter != "All":
+        filtered = filtered[filtered["BucketMatched"]==status_filter]
+    if margin_filter == "Above -0.40":
+        filtered = filtered[filtered["RecommendedMargin"]>-0.40]
+    elif margin_filter == "-0.40 to -0.50":
+        filtered = filtered[(filtered["RecommendedMargin"]<=-0.40)&(filtered["RecommendedMargin"]>-0.50)]
+    elif margin_filter == "Below -0.50":
+        filtered = filtered[filtered["RecommendedMargin"]<=-0.50]
+
+    # Build table
+    rows=""
+    for i,(_,row) in enumerate(filtered.iterrows()):
+        loan_num = str(row[loan_col])[-12:] if loan_col else "—"
+        fico     = int(row.get("_fico",0))
+        rate     = float(row.get("_rate",0))
+        amt      = float(row.get("_amount",0))
+        fb       = str(row.get("FicoBucket","—"))
+        rb       = str(row.get("RateBucket","—"))
+        ab       = str(row.get("AmountBucket","—"))
+        rec      = float(row.get("RecommendedMargin",0))
+        status   = str(row.get("BucketMatched","—"))
+        ftc,fbc  = fico_color(fico)
+        mc       = margin_color(rec)
+        s_color  = "#22c55e" if status=="Matched" else "#64748b"
+        s_bg     = "#052e16" if status=="Matched" else "#1a2332"
+        rows    += f"""<tr>
+          <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#64748b">{loan_num}</td>
+          <td><span class="fico-pill" style="background:{fbc};color:{ftc}">{fico}</span></td>
+          <td style="font-family:'JetBrains Mono',monospace;font-weight:600">{rate:.3f}%</td>
+          <td style="font-family:'JetBrains Mono',monospace">${amt:,.0f}</td>
+          <td style="color:#94a3b8;font-size:11px">{fb}</td>
+          <td style="text-align:left">{rb}</td>
+          <td style="text-align:left">{ab}</td>
+          <td>{bar_html(rec)}</td>
+          <td><span class="status-badge" style="background:{s_bg};color:{s_color}">
+            {"✓ Matched" if status=="Matched" else "○ No History"}
+          </span></td>
+        </tr>"""
+
+    st.markdown(f"""
+    <div class="table-wrap">
+      <div class="table-head-bar">
+        <div>
+          <span class="table-head-title">Loan Detail</span>
+          <span class="table-head-sub">— Recommended bid margins</span>
+        </div>
+        <span class="count-badge">{len(filtered)} records</span>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="dtable">
+          <thead><tr>
+            <th>Loan #</th><th>FICO</th><th>Rate</th><th>Amount</th>
+            <th>FICO Bucket</th><th>Rate Bkt</th><th>Amt Bkt</th>
+            <th>Rec Margin</th><th>Status</th>
+          </tr></thead>
+          <tbody>{rows}</tbody>
+        </table>
+      </div>
     </div>
     """, unsafe_allow_html=True)
 
-# Download button
-output_cols=[]
-for c in ["LoanNumber","Loan Number","Client","Program"]:
-    if c in df.columns: output_cols.append(c)
-for c in ["NoteRate","LoanAmount","FICO","LTV","Purpose","State"]:
-    if c in df.columns: output_cols.append(c)
-for c in ["All in Margin","AllInMargin"]:
-    if c in df.columns: output_cols.append(c); break
-for c in ["FicoBucket","RateBucket","AmountBucket","BucketKey","RecommendedMargin","BucketMatched"]:
-    if c in df.columns: output_cols.append(c)
-seen,final_cols=set(),[]
-for c in output_cols:
-    if c not in seen: seen.add(c); final_cols.append(c)
-out_df=df[final_cols].copy()
-csv_bytes=out_df.to_csv(index=False).encode("utf-8")
+# ── TAB 2: Analytics ──────────────────────────────────────────
+with tab2:
+    col_a, col_b = st.columns(2)
 
-col1,col2,col3=st.columns([1,2,1])
-with col2:
-    st.download_button(
-        label="↓ Download CSV Results",
-        data=csv_bytes,
-        file_name="bid_margin_recommendations.csv",
-        mime="text/csv",
-        use_container_width=True
-    )
+    with col_a:
+        # Margin distribution histogram
+        fig1 = go.Figure()
+        fig1.add_trace(go.Histogram(
+            x=df["RecommendedMargin"],
+            nbinsx=20,
+            marker=dict(
+                color=df["RecommendedMargin"].apply(
+                    lambda m: "#22c55e" if m>-0.40 else "#f59e0b" if m>-0.50 else "#ef4444"
+                ),
+                line=dict(color="#070b14", width=1)
+            ),
+            name="Margin Distribution"
+        ))
+        fig1.update_layout(
+            title=dict(text="Margin Distribution", font=dict(color="#f1f5f9", size=14)),
+            xaxis=dict(title="Recommended Margin", color="#475569", gridcolor="#1a2332"),
+            yaxis=dict(title="Loan Count", color="#475569", gridcolor="#1a2332"),
+            **CHART_THEME, showlegend=False,
+            bargap=0.1
+        )
+        st.plotly_chart(fig1, use_container_width=True)
 
-# Footer
-st.markdown("""
-<div class="footer">
-  <span style="color:#8A9A5B;font-size:11px;font-weight:700">● Bid Margin Optimizer</span>
-  <span style="color:#4a5a44;font-size:11px;font-family:monospace">Results ready — click Download CSV above</span>
-</div>
-""", unsafe_allow_html=True)
+    with col_b:
+        # FICO bucket bar chart
+        fico_counts = df["FicoBucket"].value_counts().sort_index().reset_index()
+        fico_counts.columns = ["FICO Bucket","Count"]
+        colors_map = {
+            "751-800":"#3b82f6","801-850":"#06b6d4",
+            "701-750":"#22c55e","651-700":"#f59e0b",
+            "601-650":"#f97316","551-600":"#ef4444",
+            "501-550":"#dc2626","451-500":"#991b1b"
+        }
+        fig2 = go.Figure()
+        fig2.add_trace(go.Bar(
+            x=fico_counts["FICO Bucket"],
+            y=fico_counts["Count"],
+            marker=dict(
+                color=[colors_map.get(b,"#3b82f6") for b in fico_counts["FICO Bucket"]],
+                line=dict(color="#070b14", width=1)
+            ),
+            name="FICO Buckets"
+        ))
+        fig2.update_layout(
+            title=dict(text="FICO Bucket Distribution", font=dict(color="#f1f5f9", size=14)),
+            xaxis=dict(color="#475569", gridcolor="#1a2332"),
+            yaxis=dict(title="Count", color="#475569", gridcolor="#1a2332"),
+            **CHART_THEME, showlegend=False, bargap=0.2
+        )
+        st.plotly_chart(fig2, use_container_width=True)
+
+    col_c, col_d = st.columns(2)
+
+    with col_c:
+        # FICO vs Margin scatter
+        fig3 = px.scatter(
+            df, x="_fico", y="RecommendedMargin",
+            color="BucketMatched",
+            color_discrete_map={"Matched":"#22c55e","No History":"#ef4444"},
+            labels={"_fico":"FICO Score","RecommendedMargin":"Recommended Margin"},
+            title="FICO Score vs Recommended Margin",
+        )
+        fig3.update_traces(marker=dict(size=8, opacity=0.8))
+        fig3.update_layout(
+            **CHART_THEME,
+            title=dict(font=dict(color="#f1f5f9", size=14)),
+            xaxis=dict(color="#475569", gridcolor="#1a2332"),
+            yaxis=dict(color="#475569", gridcolor="#1a2332"),
+            legend=dict(font=dict(color="#64748b"), bgcolor="#0d1117", bordercolor="#1a2332"),
+        )
+        st.plotly_chart(fig3, use_container_width=True)
+
+    with col_d:
+        # Rate bucket pie
+        rate_counts = df["RateBucket"].value_counts().reset_index()
+        rate_counts.columns = ["Rate Bucket","Count"]
+        rate_counts = rate_counts[rate_counts["Rate Bucket"]!=-1].sort_values("Rate Bucket")
+        fig4 = go.Figure(go.Pie(
+            labels=[f"Rate {r}" for r in rate_counts["Rate Bucket"]],
+            values=rate_counts["Count"],
+            hole=0.6,
+            marker=dict(colors=px.colors.sequential.Blues[2:]),
+        ))
+        fig4.update_layout(
+            title=dict(text="Rate Bucket Distribution", font=dict(color="#f1f5f9", size=14)),
+            **CHART_THEME,
+            legend=dict(font=dict(color="#64748b",size=10), bgcolor="#0d1117"),
+            annotations=[dict(text=f"{total_loans}<br>loans",
+                             x=0.5,y=0.5,font_size=14,
+                             font_color="#f1f5f9",showarrow=False)]
+        )
+        st.plotly_chart(fig4, use_container_width=True)
+
+# ── TAB 3: Bucket Statistics ──────────────────────────────────
+with tab3:
+    if stats_df is not None and len(stats_df)>0:
+        brows=""
+        for i,(_,r) in enumerate(stats_df.iterrows()):
+            mc  = margin_color(r['MedianMargin'])
+            mc_bg = "#052e16" if r['MedianMargin']>-0.40 else "#431407" if r['MedianMargin']>-0.50 else "#450a0a"
+            brows+=f"""<tr>
+              <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#94a3b8">{str(r['BucketKey'])}</td>
+              <td style="font-weight:700;color:#f1f5f9">{int(r['LoanCount'])}</td>
+              <td><span style="background:{mc_bg};color:{mc};padding:3px 12px;
+                               border-radius:99px;font-weight:700;
+                               font-family:'JetBrains Mono',monospace;font-size:12px">{r['MedianMargin']:.4f}</span></td>
+              <td style="font-family:'JetBrains Mono',monospace;color:#94a3b8">{r['AvgMargin']:.4f}</td>
+              <td style="font-family:'JetBrains Mono',monospace;color:#64748b">{r['P25Margin']:.4f}</td>
+              <td style="font-family:'JetBrains Mono',monospace;color:#64748b">{r['P75Margin']:.4f}</td>
+            </tr>"""
+
+        st.markdown(f"""
+        <div class="table-wrap">
+          <div class="table-head-bar">
+            <div>
+              <span class="table-head-title">Bucket Statistics</span>
+              <span class="table-head-sub">— Historical All In Margin by bucket</span>
+            </div>
+            <span class="count-badge">{len(stats_df)} buckets</span>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="dtable">
+              <thead><tr>
+                <th style="width:38%">Bucket Key</th>
+                <th style="width:10%">Count</th>
+                <th style="width:15%">Median</th>
+                <th style="width:15%">Avg</th>
+                <th style="width:11%">P25</th>
+                <th style="width:11%">P75</th>
+              </tr></thead>
+              <tbody>{brows}</tbody>
+            </table>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <div style="text-align:center;padding:60px;color:#475569">
+          No historical margin data found (All In Margin column missing)
+        </div>
+        """, unsafe_allow_html=True)
+
+st.markdown('</div>', unsafe_allow_html=True)

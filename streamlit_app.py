@@ -24,14 +24,13 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
 .stApp { background: #070b14 !important; }
 
 /* ── Hide streamlit chrome ── */
-#MainMenu, footer, header { visibility: hidden; }
-.block-container { padding: 0 !important; max-width: 100% !important; }
+#MainMenu, footer { visibility: hidden; }
+.block-container { padding-top: 1rem !important; padding-left: 1rem !important; padding-right: 1rem !important; max-width: 100% !important; }
 
 /* ── Sidebar ── */
 section[data-testid="stSidebar"] {
   background: #0d1117 !important;
   border-right: 1px solid #1a2332 !important;
-  width: 260px !important;
 }
 section[data-testid="stSidebar"] > div { padding: 0 !important; }
 
@@ -65,7 +64,7 @@ section[data-testid="stSidebar"] > div { padding: 0 !important; }
 .sidebar-stat-value { color: #f1f5f9; font-size: 13px; font-weight: 600; font-family: 'JetBrains Mono', monospace; }
 
 /* ── Main area ── */
-.main-content { padding: 24px 28px; }
+.main-content { padding: 8px 4px; }
 
 /* ── Page title ── */
 .page-title {
@@ -376,8 +375,15 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
+    st.markdown("""
+    <div style="padding:16px 20px 8px;border-bottom:1px solid #1a2332">
+      <div style="color:#475569;font-size:9px;font-weight:700;letter-spacing:0.12em;
+                  text-transform:uppercase;margin-bottom:12px">📂 Upload Loan File</div>
+    </div>
+    """, unsafe_allow_html=True)
+
     uploaded_file = st.file_uploader(
-        "Upload loan file",
+        "Upload Excel or CSV",
         type=["xlsx","xls","csv"],
         help="Upload your Excel or CSV loan file"
     )
